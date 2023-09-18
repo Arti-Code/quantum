@@ -35,7 +35,7 @@ impl Quant {
         let size = rand::gen_range(settings.quant_size_min, settings.quant_size_max) as f32;
         let pos = random_position(settings.world_w as f32, settings.world_h as f32);
         let shape = SharedShape::ball(size);
-        let rbh = physics.add_dynamic(key, &pos, 0.0, shape.clone(), PhysicsProperities::default());
+        let rbh = physics.add_dynamic(key, &pos, 0.0, shape.clone(), PhysicsProperities::free());
         let color = random_color();
         Self {
             key: generate_key64(),
@@ -92,17 +92,17 @@ impl Quant {
         let mut raw_pos = matrix_to_vec2(body.position().translation);
         let mut out_of_edge = false;
         if raw_pos.x < -5.0 {
-            raw_pos.x = 0.0;
+            raw_pos.x = settings.world_w as f32;
             out_of_edge = true;
         } else if raw_pos.x > settings.world_w as f32 + 5.0 {
-            raw_pos.x = settings.world_w as f32;
+            raw_pos.x = 0.0;
             out_of_edge = true;
         }
         if raw_pos.y < -5.0 {
-            raw_pos.y = 0.0;
+            raw_pos.y = settings.world_h as f32;
             out_of_edge = true;
         } else if raw_pos.y > settings.world_h as f32 + 5.0 {
-            raw_pos.y = settings.world_h as f32;
+            raw_pos.y = 0.0;
             out_of_edge = true;
         }
         if out_of_edge {

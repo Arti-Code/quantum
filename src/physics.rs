@@ -36,7 +36,7 @@ impl PhysicsProperities {
     }
 
     pub fn free() -> Self {
-        Self { friction: 0.0, restitution: 1.0, density: 1.0, linear_damping: 0.0, angular_damping: 0.0 }
+        Self { friction: 0.0, restitution: 1.0, density: 0.03, linear_damping: 0.0, angular_damping: 0.0 }
     }
 }
 

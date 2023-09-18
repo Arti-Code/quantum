@@ -33,7 +33,7 @@ async fn main() {
     setup();
     let font = load_ttf_font("assets/fonts/firacode.ttf").await.expect("can't load font resource!");
     let mut sim = Simulation::new(font.clone());
-
+    sim.init();
     loop {
         sim.input();
         if sim.is_running() {

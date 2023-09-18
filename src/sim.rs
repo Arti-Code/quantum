@@ -36,7 +36,7 @@ impl Simulation {
             font,
             physics: Physics::new(),
             camera: create_camera(),
-            running: false,
+            running: true,
             sim_time: 0.0,
             mouse_state: MouseState { pos: Vec2::NAN },
             quants: QuantumCollector::new(),
@@ -57,7 +57,8 @@ impl Simulation {
     pub fn init(&mut self) {
         let settings = get_settings();
         let quants_num = settings.quant_init_num;
-        self.quants.add_many_quants(quants_num as usize, &mut self.physics);
+        self.quants.add_many_quants(quants_num, &mut self.physics);
+        println!("quants: {}", self.quants.count());
     }
 
     pub fn autorun_new_sim(&mut self) {

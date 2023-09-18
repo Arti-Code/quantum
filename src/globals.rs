@@ -1,3 +1,4 @@
+#![allow(unused)]
 use macroquad::experimental::collections::storage;
 
 
@@ -41,12 +42,12 @@ impl Default for Settings {
         Self {
             world_w: WORLD_W as i32,
             world_h: WORLD_H as i32,
-            quant_init_num: 512,
-            quant_min_num: 35,
+            quant_init_num: 1024,
+            quant_min_num: 512,
             quant_rotate: 2.0,
             quant_speed: 100.0,
-            quant_size_min: 4,
-            quant_size_max: 4,
+            quant_size_min: 3,
+            quant_size_max: 3,
        }
     }
 }
