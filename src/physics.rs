@@ -9,6 +9,7 @@ use rapier2d::prelude::*;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::f32::consts::PI;
+use crossbeam;
 
 pub struct PhysicsProperities {
     pub friction: f32,
@@ -21,7 +22,7 @@ pub struct PhysicsProperities {
 impl Default for PhysicsProperities {
     
     fn default() -> Self {
-        Self { friction: 0.5, restitution: 0.5, density: 0.5, linear_damping: 0.1, angular_damping: 0.9 }
+        Self { friction: 1.0, restitution: 0.0, density: 1.0, linear_damping: 0.0, angular_damping: 0.0 }
     }
 }
 
@@ -51,12 +52,13 @@ pub struct Physics {
     island_manager: IslandManager,
     broad_phase: BroadPhase,
     narrow_phase: NarrowPhase,
-    impulse_joint_set: ImpulseJointSet,
+    pub impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,
     ccd_solver: CCDSolver,
     query_pipeline: QueryPipeline,
     physics_hooks: (),
     event_handler: (),
+    grav_time: f32,
 }
 
 impl Physics {
@@ -78,10 +80,15 @@ impl Physics {
             query_pipeline: QueryPipeline::new(),
             physics_hooks: (),
             event_handler: (),
+            grav_time: 0.0,
         }
     }
 
     pub fn step_physics(&mut self) {
+        let (collision_send, collision_recv) = crossbeam::channel::unbounded();
+        let (contact_force_send, contact_force_recv) = crossbeam::channel::unbounded();
+        let event_handler = ChannelEventCollector::new(collision_send, contact_force_send);
+
         self.attract_num = 0;
         self.physics_pipeline.step(
             &self.gravity,
@@ -96,8 +103,50 @@ impl Physics {
             &mut self.ccd_solver,
             Some(&mut self.query_pipeline),
             &self.physics_hooks,
-            &self.event_handler,
+            &event_handler,
+            //&self.event_handler,
         );
+
+
+
+/*         while let Ok(collision_event) = collision_recv.try_recv() {
+            match collision_event {
+                CollisionEvent::Started(_, _, CollisionEventFlags::SENSOR) => {
+                    println!("sensor");
+                },
+                CollisionEvent::Started(_, _, CollisionEventFlags::REMOVED) => {
+                    println!("removed");
+                },
+                CollisionEvent::Started(c1, c2, _) => {
+                    let collider1 = self.colliders.get(c1).unwrap();
+                    let collider2 = self.colliders.get(c2).unwrap();
+                    let body1 = self.rigid_bodies.get(collider1.parent().unwrap()).unwrap();
+                    let body2 = self.rigid_bodies.get(collider2.parent().unwrap()).unwrap();
+                    let eng = body1.kinetic_energy() + body2.kinetic_energy();
+                    let txt = match eng {
+                        e if e < 1000.0 => {
+                            format!("{}J", e.round())
+                        },
+                        e if e < 1000_000.0 => {
+                            format!("{}kJ", (e/1000.0).round())
+                        },
+                        e if e < 1000_000_000.0 => {
+                            format!("{}MJ", (e/1000_000.0).round())
+                        },
+                        e => {
+                            format!("{}GJ", (e/1000_000_000.0).round())
+                        },
+                    };
+                    println!("[COLLISION]: energy: {}", txt);
+                },
+                CollisionEvent::Stopped(_, _, _) => {
+
+                },
+            }
+            //println!("Received collision event: {:?}", collision_event);
+        } */
+
+        //self.update_grav();
     }
 
     pub fn remove_physics_object(&mut self, body_handle: RigidBodyHandle) {
@@ -132,7 +181,7 @@ impl Physics {
     fn add_dynamic_rigidbody(&mut self, key: u64, position: &Vec2, rotation: f32, linear_damping: f32, angular_damping: f32) -> RigidBodyHandle {
         let pos = Isometry2::new(Vector2::new(position.x, position.y), rotation);
         let dynamic_body = RigidBodyBuilder::dynamic().position(pos)
-            .linear_damping(linear_damping).angular_damping(angular_damping).build();
+            .linear_damping(linear_damping).angular_damping(angular_damping).can_sleep(false).build();
         return self.rigid_bodies.insert(dynamic_body);
     }
 
@@ -148,6 +197,10 @@ impl Physics {
                 ColliderBuilder::new(shape).density(physics_props.density).friction(physics_props.friction).restitution(physics_props.restitution)
                 .active_collision_types(ActiveCollisionTypes::default()).active_events(ActiveEvents::COLLISION_EVENTS).build()
             },
+            ShapeType::Compound => {
+                ColliderBuilder::new(shape).density(physics_props.density).friction(physics_props.friction).restitution(physics_props.restitution)
+                .active_collision_types(ActiveCollisionTypes::default()).active_events(ActiveEvents::COLLISION_EVENTS).build()
+            },
             _ => {
                 ColliderBuilder::ball(5.0).position(iso).build()
             },
@@ -158,15 +211,27 @@ impl Physics {
     pub fn add_dynamic(&mut self, key: u64, position: &Vec2, rotation: f32, shape: SharedShape, physics_props: PhysicsProperities) -> RigidBodyHandle {
         let rbh = self.add_dynamic_rigidbody(key, position, rotation, physics_props.linear_damping, physics_props.angular_damping);
         _ = self.add_collider(rbh, &Vec2::ZERO, 0.0, shape, physics_props);
-        match self.rigid_bodies.get_mut(rbh) {
-            Some(body) => {
-                let v = random_unit_vec2();
-                let mut f = random_unit() * 100.0 * v;
-                body.apply_impulse(Vector2::new(f.x, f.y), true);
-            },
-            None => {},
-        }
+        //match self.rigid_bodies.get_mut(rbh) {
+        //    Some(body) => {
+        //        let settings = get_settings();
+        //        let v = random_unit_vec2();
+        //        let mut f = random_unit() * settings.force * v;
+        //        body.apply_impulse(Vector2::new(f.x, f.y), true);
+        //    },
+        //    None => {},
+        //}
         return rbh;
+    }
+
+    pub fn add_prismatic_joint(&mut self, body_handle1: RigidBodyHandle, body_handle2: RigidBodyHandle, anchors: (Point2<f32>, Point2<f32>)) -> ImpulseJointHandle {
+        let p1 = anchors.0;
+        let p2 = anchors.1;
+        let joint = PrismaticJointBuilder::new(Vector2::x_axis())
+            .local_anchor1(p1).local_anchor2(p2)
+            .motor_velocity(0.0, 0.1)
+            .build();
+        let joint_handle = self.impulse_joint_set.insert(body_handle1, body_handle2, joint, true);
+        return joint_handle;
     }
 
     pub fn get_physics_data(&self, handle: RigidBodyHandle) -> PhysicsData {
@@ -290,6 +355,37 @@ impl Physics {
         }
     }
 
+    fn update_grav(&mut self) {
+        self.grav_time += get_frame_time();
+        if self.grav_time >= 0.25 {
+            self.grav_time -= 0.25;
+            let mut gravity_map: HashMap<RigidBodyHandle, Vec2> = HashMap::new();
+            for (id1, body1) in self.rigid_bodies.iter() {
+                let mut gforce = Vec2::ZERO;
+                let pos1 = Vec2::new(body1.position().translation.x, body1.position().translation.y);
+                let coll1 = self.colliders.get(*body1.colliders().first().unwrap()).unwrap();
+                let size1 = coll1.shape().as_ball().unwrap().radius;
+                for (id2, body2) in self.rigid_bodies.iter() { 
+                    if id1 == id2 {
+                        continue;
+                    }
+                    let pos2 = Vec2::new(body2.position().translation.x, body2.position().translation.y);
+                    let dist = pos2.distance_squared(pos1);
+                    if dist >= 10000.0 { continue; }
+                    let coll2 = self.colliders.get(*body2.colliders().first().unwrap()).unwrap();
+                    let size2 = coll2.shape().as_ball().unwrap().radius;
+                    let dir = (pos1-pos2).normalize_or_zero();
+                    gforce += (GRAV*dir * (size1+size2)) / dist; 
+                }
+                gravity_map.insert(id1, gforce);
+            }
+            for (rbh, gforce) in gravity_map.iter() {
+                let rb = self.rigid_bodies.get_mut(*rbh).unwrap();
+                rb.reset_forces(true);
+                rb.add_force(vector![gforce.x, gforce.y], true);
+            }
+        }
+    }
 }
 
 pub struct PhysicsData {

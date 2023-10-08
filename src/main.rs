@@ -7,6 +7,8 @@ mod physics;
 mod collector;
 mod globals;
 mod quant;
+mod joint;
+mod ui;
 
 use macroquad::prelude::*;
 use crate::sim::*;
@@ -26,6 +28,7 @@ fn app_configuration() -> Conf {
 
 fn setup() {
     init_global_settings(Settings::default());
+    init_global_signals(Signals::default());
 }
 
 #[macroquad::main(app_configuration)]

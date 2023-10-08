@@ -9,6 +9,7 @@ use macroquad::{color, prelude::*};
 use macroquad::rand::*;
 use rapier2d::geometry::*;
 use rapier2d::na::Vector2;
+use rapier2d::prelude::ImpulseJointHandle;
 use rapier2d::prelude::{RigidBody, RigidBodyHandle};
 
 
@@ -23,20 +24,22 @@ pub struct Quant {
     pub color: color::Color,
     pub shape: SharedShape,
     pub physics_handle: RigidBodyHandle,
+    pub bounds_num: usize,
+    pub bounds: Vec<ImpulseJointHandle>,
 }
 
 
 
 impl Quant {
     
-    pub fn new(physics: &mut Physics) -> Self {
+    pub fn new(size: f32, bounds_num: usize, color: Color, physics: &mut Physics) -> Self {
         let settings = get_settings();
         let key = gen_range(u64::MIN, u64::MAX);
-        let size = rand::gen_range(settings.quant_size_min, settings.quant_size_max) as f32;
+        //let size = rand::gen_range(settings.quant_size_min, settings.quant_size_max) as f32;
         let pos = random_position(settings.world_w as f32, settings.world_h as f32);
-        let shape = SharedShape::ball(size);
-        let rbh = physics.add_dynamic(key, &pos, 0.0, shape.clone(), PhysicsProperities::free());
-        let color = random_color();
+        let shape = SharedShape::ball(size*0.75);
+        let rbh = physics.add_dynamic(key, &pos, 0.0, shape.clone(), PhysicsProperities::default());
+        //let color = random_color();
         Self {
             key: generate_key64(),
             pos,
@@ -48,8 +51,32 @@ impl Quant {
             color,
             shape,
             physics_handle: rbh,
+            bounds_num,
+            bounds: vec![],
         }
     }
+
+    pub fn new_custom(position: Vec2, size: f32, bounds_num: usize, color: Color, physics: &mut Physics) -> Self {
+        let settings = get_settings();
+        let key = gen_range(u64::MIN, u64::MAX);
+        let shape = SharedShape::ball(size*0.9);
+        let rbh = physics.add_dynamic(key, &position, 0.0, shape.clone(), PhysicsProperities::default());
+        Self {
+            key: generate_key64(),
+            pos: position,
+            rot: random_rotation(),
+            mass: 0.0,
+            vel: 0.0,
+            ang_vel: 0.0,
+            size,
+            color,
+            shape,
+            physics_handle: rbh,
+            bounds_num,
+            bounds: vec![],
+        }
+    }
+
 
     pub fn draw(&self) {
         let settings = get_settings();
@@ -74,17 +101,17 @@ impl Quant {
         self.pos = physics_data.position;
         self.rot = physics_data.rotation;
         self.mass = physics_data.mass;
-        match physics.rigid_bodies.get_mut(self.physics_handle) {
-            Some(body) => {
-                self.check_edges(body);
-        //        let dir = Vec2::from_angle(self.rot);
-        //        let v = dir * self.vel * settings.quant_speed;
-        //        let rot = self.ang_vel * settings.quant_rotate;
-        //        body.set_linvel(Vector2::new(v.x, v.y), true);
-        //        body.set_angvel(rot, true);
-            }
-            None => {}
-        }
+        //match physics.rigid_bodies.get_mut(self.physics_handle) {
+        //    Some(body) => {
+        //        //self.check_edges(body);
+        ////        let dir = Vec2::from_angle(self.rot);
+        ////        let v = dir * self.vel * settings.quant_speed;
+        ////        let rot = self.ang_vel * settings.quant_rotate;
+        ////        body.set_linvel(Vector2::new(v.x, v.y), true);
+        ////        body.set_angvel(rot, true);
+        //    }
+        //    None => {}
+        //}
     }
 
     fn check_edges(&mut self, body: &mut RigidBody) {

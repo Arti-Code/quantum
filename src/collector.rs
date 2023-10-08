@@ -31,20 +31,22 @@ impl QuantumCollector {
 
     pub fn add_many_quants(&mut self, quants_num: usize, physics: &mut Physics) {
         for _ in 0..quants_num {
-            let quant = Quant::new(physics);
+            let quant = Quant::new(6.0, 3, WHITE, physics);
             _ = self.add_quant(quant);
         }
     }
 
-    pub fn add_quant(&mut self, quant: Quant) {
+    pub fn add_quant(&mut self, quant: Quant) -> RigidBodyHandle {
+        let h = quant.physics_handle.clone();
         self.quants.insert(quant.physics_handle, quant);
+        return h;
     }
 
     pub fn get(&self, id: RigidBodyHandle) -> Option<&Quant> {
         return self.quants.get(&id);
     }
 
-    pub fn _remove(&mut self, id: RigidBodyHandle) {
+    pub fn remove(&mut self, id: RigidBodyHandle) {
         self.quants.remove(&id);
     }
 
